@@ -1,0 +1,65 @@
+/* 颜色等级（对应原项目 src/index.css 中的 .level-0..4） */
+.level-0 { background-color: #ebedf0; } /* 无活动 */
+.level-1 { background-color: #9be9a8; } /* 少 */
+.level-2 { background-color: #40c463; } /* 中等 */
+.level-3 { background-color: #30a14e; } /* 多 */
+.level-4 { background-color: #216e39; } /* 很多 */
+
+/* 容器与列/格子基础布局，便于在组件中快速复用 */
+.heatmap-container {
+  position: relative;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+.week-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.calendar-cell {
+  width: 100%;
+  aspect-ratio: 1/1;
+  border-radius: 2px;
+  transition: transform 120ms ease, opacity 120ms ease;
+  cursor: pointer;
+}
+.calendar-cell:hover {
+  transform: scale(1.05);
+}
+
+/* 图例小方块 */
+.legend-item {
+  width: 0.625rem; /* 10px */
+  height: 0.625rem;
+  margin: 0 0.125rem;
+  border-radius: 2px;
+}
+
+/* tooltip（可直接复用到组件内定位逻辑） */
+.heatmap-tooltip {
+  position: fixed;
+  background: rgba(17, 24, 39, 0.95);
+  color: #fff;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  transform-origin: top left;
+  transition: opacity 150ms ease, transform 150ms ease;
+  opacity: 0;
+  transform: scale(0.95);
+}
+.heatmap-tooltip.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 深色模式对应颜色（可选，用于支持 dark mode） */
+.dark .level-0 { background-color: #2d333b; }
+.dark .level-1 { background-color: #0e4429; }
+.dark .level-2 { background-color: #006d32; }
+.dark .level-3 { background-color: #26a641; }
+.dark .level-4 { background-color: #39d353; }
