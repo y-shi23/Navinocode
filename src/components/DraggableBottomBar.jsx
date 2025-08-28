@@ -401,6 +401,14 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
     document.body.style.userSelect = '';
   };
 
+  // 统一取消长按与拖拽的工具函数
+  const cancelDragAndTimer = () => {
+    cancelLongPress();
+    if (isDraggingRef.current || isDragging) {
+      resetDragState();
+    }
+  };
+
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -416,6 +424,20 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
       document.removeEventListener('touchend', handleMouseUp);
     };
   }, [isDragging, dragIndex, dragStartPos, targetIndex, apps, bottomCount]);
+
+  // 页面失焦或切到后台时，取消长按与拖拽，避免回到页面时“粘住”
+  useEffect(() => {
+    const onBlur = () => cancelDragAndTimer();
+    const onVisibility = () => {
+      if (document.hidden) cancelDragAndTimer();
+    };
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   // apps 或配置变化时，确保 bottomCount 合法并持久化
   useEffect(() => {
@@ -471,6 +493,8 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
       e.stopPropagation();
       return;
     }
+  // 点击跳转前，务必清理任何潜在长按或拖拽状态，避免返回后进入粘连状态
+  cancelDragAndTimer();
     
     recordUsageEvent('jump');
     window.open(app.url, '_blank');
