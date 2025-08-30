@@ -568,11 +568,47 @@ const AppSelector = ({ apps, setApps, triggerRef = null, dropHighlight = false }
                     window.open(app.url, '_blank');
                   }}
                 >
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-2 ${getIconColor(app.icon)} text-white`}>
-                    <span className="font-bold text-lg">
-                      {computeAppLetter(app)}
-                    </span>
-                  </div>
+                  {(() => {
+                    const ic = app.icon || '';
+                    const isUrlLike = /^https?:\/\//i.test(ic) || ic.startsWith('data:');
+                    if (isUrlLike) {
+                      return (
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-2 bg-white/90 dark:bg-black/30 overflow-hidden">
+                          <img
+                            src={ic}
+                            alt={app.name}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              const imgEl = e.currentTarget;
+                              if (!imgEl.dataset.fallbackTried) {
+                                try {
+                                  const hostname = new URL(app.url).hostname;
+                                  imgEl.dataset.fallbackTried = '1';
+                                  imgEl.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+                                  return;
+                                } catch {}
+                              }
+                              imgEl.style.display = 'none';
+                              const parent = imgEl.parentElement;
+                              if (parent) {
+                                parent.className = `w-12 h-12 rounded-2xl flex items-center justify-center mb-2 ${getIconColor(app.icon)} text-white`;
+                                const span = document.createElement('span');
+                                span.className = 'font-bold text-lg';
+                                span.textContent = computeAppLetter(app);
+                                parent.appendChild(span);
+                              }
+                            }}
+                          />
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-2 ${getIconColor(app.icon)} text-white`}>
+                        <span className="font-bold text-lg">{computeAppLetter(app)}</span>
+                      </div>
+                    );
+                  })()}
                   <span className="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 text-center">
                     {app.name}
                   </span>

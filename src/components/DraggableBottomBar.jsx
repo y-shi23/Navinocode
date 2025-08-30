@@ -540,9 +540,49 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
                 onContextMenu={() => cancelLongPress()}
                 onClick={(e) => handleAppClick(app, e)}
               >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-1 ${getIconColor(app.icon)} text-white`}>
-                  <span className="font-bold text-sm">{computeAppLetter(app)}</span>
-                </div>
+                {(() => {
+                  const ic = app.icon || '';
+                  const isUrlLike = /^https?:\/\//i.test(ic) || ic.startsWith('data:');
+                  if (isUrlLike) {
+                    return (
+                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1 bg-white/90 dark:bg-black/30 overflow-hidden">
+                        <img
+                          src={ic}
+                          alt={app.name}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            // 先尝试备用 favicon 源（Google s2），再退回字母块
+                            const imgEl = e.currentTarget;
+                            if (!imgEl.dataset.fallbackTried) {
+                              try {
+                                const hostname = new URL(app.url).hostname;
+                                imgEl.dataset.fallbackTried = '1';
+                                imgEl.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+                                return;
+                              } catch {}
+                            }
+                            imgEl.style.display = 'none';
+                            const parent = imgEl.parentElement;
+                            if (parent) {
+                              parent.className = `w-12 h-12 rounded-2xl flex items-center justify-center mb-1 ${getIconColor(app.icon)} text-white`;
+                              const span = document.createElement('span');
+                              span.className = 'font-bold text-sm';
+                              span.textContent = computeAppLetter(app);
+                              parent.appendChild(span);
+                            }
+                          }}
+                        />
+                      </div>
+                    );
+                  }
+                  // 关键字或空：渲染字母块
+                  return (
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-1 ${getIconColor(app.icon)} text-white`}>
+                      <span className="font-bold text-sm">{computeAppLetter(app)}</span>
+                    </div>
+                  );
+                })()}
               </Button>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="rounded-2xl shadow-lg border bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1 min-w-[10rem]">

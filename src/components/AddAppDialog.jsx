@@ -48,27 +48,19 @@ const AddAppDialog = ({ isOpen, setIsOpen, setApps, apps }) => {
     // 确定图标
     let appIcon = icon;
     if (!icon && iconFile) {
-      // 如果上传了文件但没有图标URL，则使用文件
+      // 如果上传了文件但没有图标URL，则使用文件（预览使用 dataURL，这里仍存占位标记）
       appIcon = 'custom';
     } else if (!icon && !iconFile) {
-      // 如果都没有，尝试从API获取图标
+      // 图标输入为空时，使用 icon.bqb.cool 提供的网站图标，避免主动 fetch 以规避 CORS，仅通过 <img src> 加载
       try {
-        const iconApiUrl = `https://icon.bqb.cool/?url=${encodeURIComponent(normalizedUrl)}`;
-        const response = await fetch(iconApiUrl);
-        
-        if (response.ok) {
-          // 检查返回的图片是否有效
-          const blob = await response.blob();
-          if (blob.size > 0 && blob.type.startsWith('image/')) {
-            appIcon = iconApiUrl;
-          } else {
-            throw new Error('Invalid image response');
-          }
+        const target = normalizedUrl || url;
+        if (target) {
+          appIcon = `https://icon.bqb.cool/?url=${encodeURIComponent(target)}`;
         } else {
-          throw new Error('API request failed');
+          // 若无有效网址则回退首字母
+          appIcon = appName.charAt(0).toLowerCase();
         }
-      } catch (err) {
-        // API获取失败，使用首字母
+      } catch {
         appIcon = appName.charAt(0).toLowerCase();
       }
     }
