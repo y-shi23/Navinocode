@@ -24,7 +24,7 @@ const AddAppDialog = ({ isOpen, setIsOpen, setApps, apps }) => {
     return u;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     // 生成新的应用ID
@@ -51,8 +51,26 @@ const AddAppDialog = ({ isOpen, setIsOpen, setApps, apps }) => {
       // 如果上传了文件但没有图标URL，则使用文件
       appIcon = 'custom';
     } else if (!icon && !iconFile) {
-      // 如果都没有，则使用首字母
-      appIcon = appName.charAt(0).toLowerCase();
+      // 如果都没有，尝试从API获取图标
+      try {
+        const iconApiUrl = `https://icon.bqb.cool/?url=${encodeURIComponent(normalizedUrl)}`;
+        const response = await fetch(iconApiUrl);
+        
+        if (response.ok) {
+          // 检查返回的图片是否有效
+          const blob = await response.blob();
+          if (blob.size > 0 && blob.type.startsWith('image/')) {
+            appIcon = iconApiUrl;
+          } else {
+            throw new Error('Invalid image response');
+          }
+        } else {
+          throw new Error('API request failed');
+        }
+      } catch (err) {
+        // API获取失败，使用首字母
+        appIcon = appName.charAt(0).toLowerCase();
+      }
     }
     
     const newApp = {
@@ -123,7 +141,7 @@ const AddAppDialog = ({ isOpen, setIsOpen, setApps, apps }) => {
               <Input
                 id="icon"
                 type="text"
-                placeholder="图标直链URL"
+                placeholder="留空则自动获取网站图标"
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 className="apple-input pr-10"
