@@ -491,10 +491,10 @@ const AppSelector = ({ apps, setApps, triggerRef = null, dropHighlight = false }
       <Button
             ref={triggerRef}
             variant="ghost"
-            className="flex flex-col items-center justify-center p-2 h-auto rounded-2xl hover:bg-white/20 dark:hover:bg-black/10 transition-all duration-200"
+            className="group relative flex h-auto w-12 shrink-0 flex-col items-center justify-center rounded-none bg-transparent p-0 transition-transform duration-200 ease-out will-change-transform focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-transparent dark:hover:bg-transparent"
             style={{
         transform: dropHighlight ? 'scale(1.06)' : 'scale(1)',
-        transformOrigin: 'center',
+        transformOrigin: 'bottom center',
         boxShadow: dropHighlight ? '0 0 0 3px rgba(59,130,246,0.25)' : 'none',
         transition: 'transform 140ms ease, box-shadow 140ms ease'
             }}
