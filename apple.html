@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>苹果程序坞</title>
+    <style>
+      body {
+        background-color: var(--color-neutral-300);
+        color: var(--color-dark);
+        font-size: var(--size-font);
+        font-family: Arial, sans-serif;
+      }
+
+      .cloneable {
+        padding: var(--container-padding);
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        display: flex;
+        position: relative;
+      }
+
+      .nav-wrap {
+        z-index: 100;
+        pointer-events: none;
+        justify-content: center;
+        align-items: flex-end;
+        display: flex;
+        position: fixed;
+        inset: 0 0 10vh;
+      }
+
+      .nav-list {
+        flex-flow: row;
+        justify-content: center;
+        align-items: flex-end;
+        margin-bottom: 0;
+        padding-left: 0;
+        display: flex;
+        font-size: 1.4vw;
+      }
+
+      .nav-item {
+        justify-content: center;
+        align-items: center;
+        width: 5em;
+        transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        position: relative;
+      }
+
+      .nav-item.hover {
+        width: 8em;
+      }
+
+      .nav-item.sibling-close {
+        width: 7em;
+      }
+
+      .nav-item.sibling-far {
+        width: 6em;
+      }
+
+      .nav-item__link {
+        z-index: 1;
+        pointer-events: auto;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        padding-left: 0.5em;
+        padding-right: 0.5em;
+        display: flex;
+        position: relative;
+      }
+
+      .image {
+        object-fit: contain;
+        width: 100%;
+      }
+
+      .nav-item__tooltip {
+        z-index: 0;
+        background-color: var(--color-neutral-100);
+        opacity: 0;
+        white-space: nowrap;
+        border-radius: 0.25em;
+        padding: 0.4em 0.5em;
+        font-size: 1em;
+        transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+          opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        position: absolute;
+        top: 0;
+        transform: translate(0, -80%);
+        font-weight: 400;
+      }
+
+      .nav-item:hover .nav-item__tooltip {
+        opacity: 1;
+        transform: translate(0px, -140%);
+      }
+    </style>
+  </head>
+  <body>
+    <section class="cloneable">
+      <div class="nav-wrap">
+        <nav class="nav-bar">
+          <ul class="nav-list">
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6be92ee5ddf0080fb90_notion.png"
+                  loading="eager"
+                  alt="Notion app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Notion</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6bef9d004f8a9cf3b29_asana.png"
+                  loading="eager"
+                  alt="Asana app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Asana</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6be8c099d4e1ed55770_slack.png"
+                  loading="eager"
+                  alt="Slack app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Slack</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6be5b31ba243e4da377_loom.png"
+                  loading="eager"
+                  alt="Loom app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Loom</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6bea97e140677496dae_spotify.png"
+                  loading="eager"
+                  alt="Spotify app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Spotify</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6bea73fcc6ee568f6f0_webflow.png"
+                  loading="eager"
+                  alt="Webflow app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Webflow</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728b10be6bc07649a51369e_Osmo.png"
+                  loading="eager"
+                  alt=""
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Osmo</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6bdf9d004f8a9cf3b09_adobe-illustrator.png"
+                  loading="eager"
+                  alt="Adobe Illustrator app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Adobe Illustrator</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6be1de916069b5e1aaa_figma.png"
+                  loading="eager"
+                  alt="figma app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Figma</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6be1de916069b5e1a86_adobe-photoshop.png"
+                  loading="eager"
+                  alt="Photoshop app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Photoshop</div>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a class="nav-item__link"
+                ><img
+                  src="https://cdn.prod.website-files.com/6728a3e6f4f4161c235bc519/6728a6be051d32942a7aa31e_adobe-premierepro.png"
+                  loading="eager"
+                  alt="Premiere Pro app icon"
+                  class="image"
+              /></a>
+              <div class="nav-item__tooltip">
+                <div>Premiere Pro</div>
+              </div>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </section>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        // Select all .nav-item elements
+        const navItems = document.querySelectorAll('.nav-item');
+        // Helper function to add/remove a class to a sibling at a given offset
+        const toggleSiblingClass = (items, index, offset, className, add) => {
+          const sibling = items[index + offset];
+          if (sibling) {
+            sibling.classList.toggle(className, add);
+          }
+        };
+        // Event listeners to toggle classes on hover
+        navItems.forEach((item, index) => {
+          item.addEventListener('mouseenter', () => {
+            item.classList.add('hover'); // Add .hover to current item
+            // Toggle classes for siblings
+            toggleSiblingClass(navItems, index, -1, 'sibling-close', true); // Previous sibling
+            toggleSiblingClass(navItems, index, 1, 'sibling-close', true); // Next sibling
+            toggleSiblingClass(navItems, index, -2, 'sibling-far', true); // Previous-previous sibling
+            toggleSiblingClass(navItems, index, 2, 'sibling-far', true); // Next-next sibling
+          });
+          item.addEventListener('mouseleave', () => {
+            item.classList.remove('hover'); // Remove .hover from current item
+            // Toggle classes for siblings
+            toggleSiblingClass(navItems, index, -1, 'sibling-close', false); // Previous sibling
+            toggleSiblingClass(navItems, index, 1, 'sibling-close', false); // Next sibling
+            toggleSiblingClass(navItems, index, -2, 'sibling-far', false); // Previous-previous sibling
+            toggleSiblingClass(navItems, index, 2, 'sibling-far', false); // Next-next sibling
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

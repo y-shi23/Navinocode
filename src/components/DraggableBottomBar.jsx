@@ -18,6 +18,10 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
   const [isCompleting, setIsCompleting] = useState(false); // 新增：正在完成拖拽动画
   const [completingIndex, setCompletingIndex] = useState(null); // 正在完成动画的元素索引
   const [suppressTransition, setSuppressTransition] = useState(false); // 完成阶段后的瞬间禁用过渡，避免二次飞行
+
+  // Dock hover animation states
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [hoveredSiblings, setHoveredSiblings] = useState(new Set());
   
   // 使用 ref 来跟踪拖拽状态，避免事件时序问题
   const hasDraggedRef = useRef(false);
@@ -54,9 +58,11 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
   }, []);
   
   const actualBottomApps = bottomApps.length;
-  const containerWidth = (actualBottomApps + 1) * 64 + (actualBottomApps + 1 - 1) * 8;
-  const cardExtraPadding = 32; // apple-card p-4 左右各16px
-  const overflowGuard = 12; // 为九宫格放大预留空间
+  const iconSize = 48; // 减小图标大小从64到48
+  const iconSpacing = 6; // 减小图标间距从8到6
+  const containerWidth = (actualBottomApps + 1) * iconSize + (actualBottomApps + 1 - 1) * iconSpacing;
+  const cardExtraPadding = 24; // 减小容器内边距
+  const overflowGuard = 8; // 减小预留空间
 
   // 计算每个元素在拖拽/落位过程中应该显示的位置
   const getItemTransform = (index) => {
@@ -70,7 +76,7 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
       return 'translateX(0px)';
     }
 
-    const itemWidth = 64 + 8; // 图标宽度 + margin
+    const itemWidth = iconSize + iconSpacing; // 图标宽度 + 间距
     
     // 如果拖拽目标位置就是当前位置，不需要移动
     if (targetIndex === dragIndex) {
@@ -96,7 +102,7 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
   const getIconColor = (iconName) => {
     const colorMap = {
       gmail: 'bg-red-500',
-      youtube: 'bg-red-600', 
+      youtube: 'bg-red-600',
       github: 'bg-gray-900',
       twitter: 'bg-blue-400',
       facebook: 'bg-blue-600',
@@ -105,6 +111,50 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
       reddit: 'bg-orange-500',
     };
     return colorMap[iconName] || 'bg-gray-500';
+  };
+
+  // Dock hover animation handlers
+  const handleMouseEnter = (index) => {
+    if (isDragging) return;
+
+    setHoveredIndex(index);
+    const siblings = new Set();
+
+    // Add close siblings (immediate neighbors)
+    if (index - 1 >= 0) siblings.add(index - 1);
+    if (index + 1 < bottomApps.length) siblings.add(index + 1);
+
+    // Add far siblings (second neighbors)
+    if (index - 2 >= 0) siblings.add(index - 2);
+    if (index + 2 < bottomApps.length) siblings.add(index + 2);
+
+    setHoveredSiblings(siblings);
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredIndex(null);
+    setHoveredSiblings(new Set());
+  };
+
+  // Calculate scale for dock items based on hover state
+  const getDockItemScale = (index) => {
+    if (isDragging) return 1;
+
+    if (hoveredIndex === index) {
+      return 1.3; // Main hovered item
+    }
+
+    if (hoveredSiblings.has(index)) {
+      // Check if it's a close or far sibling
+      const distance = Math.abs(index - hoveredIndex);
+      if (distance === 1) {
+        return 1.15; // Close sibling
+      } else if (distance === 2) {
+        return 1.05; // Far sibling
+      }
+    }
+
+    return 1; // Normal size
   };
 
   const handleMouseDown = (e, index) => {
@@ -217,7 +267,7 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
 
     if (isDragging && dragIndex !== null && targetIndex !== null && dragIndex !== targetIndex) {
       // 计算目标位置的偏移量（从原始位置算起）
-      const itemWidth = 64 + 8; // 图标宽度 + margin
+      const itemWidth = iconSize + iconSpacing; // 图标宽度 + 间距
       const positionDiff = targetIndex - dragIndex;
       const targetOffsetX = positionDiff * itemWidth;
       
@@ -309,7 +359,7 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
         const relativeX = e.clientX - containerRect.left;
-        const itemWidth = 64 + 8; // 图标宽度 + margin
+        const itemWidth = iconSize + iconSpacing; // 图标宽度 + 间距
         
         // 计算最接近的插槽位置
         let newTargetIndex = Math.round(relativeX / itemWidth);
@@ -366,7 +416,7 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
         const relativeX = touch.clientX - containerRect.left;
-        const itemWidth = 64 + 8; // 图标宽度 + margin
+        const itemWidth = iconSize + iconSpacing; // 图标宽度 + 间距
         
         // 计算最接近的插槽位置
         let newTargetIndex = Math.round(relativeX / itemWidth);
@@ -503,11 +553,12 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
   return (
     <div className="py-6">
       <div className="mx-auto px-4">
-  <div className="apple-card p-4 mx-auto transition-all duration-300 ease-in-out" style={{ width: `${containerWidth + cardExtraPadding + overflowGuard}px`, maxWidth: '90vw' }}>
-          <div 
+  <div className="apple-card p-3 mx-auto transition-all duration-300 ease-in-out" style={{ width: `${containerWidth + cardExtraPadding + overflowGuard}px`, maxWidth: '90vw' }}>
+          <div
             ref={containerRef}
-            className="flex justify-center mx-auto" 
+            className="flex justify-center mx-auto"
             style={{ width: 'fit-content' }}
+            onMouseLeave={handleMouseLeave}
           >
             {bottomApps.map((app, index) => (
               <ContextMenu key={app.id}>
@@ -515,7 +566,7 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
               <Button
                 key={app.id}
                 variant="ghost"
-                className={`flex flex-col items-center justify-center p-2 h-auto rounded-2xl hover:bg-white/20 dark:hover:bg-black/10 transition-all duration-200 mx-1 relative ${
+                className={`flex flex-col items-center justify-center p-1 h-auto rounded-2xl transition-all duration-200 mx-0.5 relative group hover:bg-transparent hover:text-transparent focus:bg-transparent focus:text-transparent active:bg-transparent active:text-transparent ${
                   isDragging && index === dragIndex ? 'z-50' : ''
                 }`}
                 style={{
@@ -523,7 +574,7 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
                     ? `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(1.1) rotate(3deg)`
                     : isCompleting && index === dragIndex
                     ? `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(1.0)`
-                    : getItemTransform(index),
+                    : `scale(${getDockItemScale(index)}) ${getItemTransform(index)}`,
                   opacity: isDragging && index === dragIndex ? 0.9 : 1,
                   cursor: isDragging && index === dragIndex ? 'grabbing' : 'pointer',
                   transition: suppressTransition
@@ -532,20 +583,26 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
                     ? 'none'
                     : isCompleting && index === dragIndex
                     ? 'all 350ms cubic-bezier(0.4, 0, 0.2, 1)'
-                    : 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
-                  zIndex: (isDragging && index === dragIndex) || (isCompleting && index === dragIndex) ? 1000 : 'auto'
+                    : 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease',
+                  zIndex: (isDragging && index === dragIndex) || (isCompleting && index === dragIndex) ? 1000 : 'auto',
+                  backgroundColor: 'transparent',
+                  boxShadow: 'none',
+                  border: 'none',
+                  outline: 'none'
                 }}
                 onMouseDown={(e) => handleMouseDown(e, index)}
                 onTouchStart={(e) => handleTouchStart(e, index)}
                 onContextMenu={() => cancelLongPress()}
                 onClick={(e) => handleAppClick(app, e)}
+                onMouseEnter={() => handleMouseEnter(index)}
+                onMouseLeave={handleMouseLeave}
               >
                 {(() => {
                   const ic = app.icon || '';
                   const isUrlLike = /^https?:\/\//i.test(ic) || ic.startsWith('data:');
                   if (isUrlLike) {
                     return (
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1 bg-white/90 dark:bg-black/30 overflow-hidden">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/90 dark:bg-black/30 overflow-hidden">
                         <img
                           src={ic}
                           alt={app.name}
@@ -558,16 +615,16 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
                               try {
                                 const hostname = new URL(app.url).hostname;
                                 imgEl.dataset.fallbackTried = '1';
-                                imgEl.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+                                imgEl.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=48`;
                                 return;
                               } catch {}
                             }
                             imgEl.style.display = 'none';
                             const parent = imgEl.parentElement;
                             if (parent) {
-                              parent.className = `w-12 h-12 rounded-2xl flex items-center justify-center mb-1 ${getIconColor(app.icon)} text-white`;
+                              parent.className = `w-10 h-10 rounded-xl flex items-center justify-center ${getIconColor(app.icon)} text-white`;
                               const span = document.createElement('span');
-                              span.className = 'font-bold text-sm';
+                              span.className = 'font-bold text-xs';
                               span.textContent = computeAppLetter(app);
                               parent.appendChild(span);
                             }
@@ -578,11 +635,23 @@ const DraggableBottomBar = ({ apps, setApps, maxBottomApps = 8 }) => {
                   }
                   // 关键字或空：渲染字母块
                   return (
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-1 ${getIconColor(app.icon)} text-white`}>
-                      <span className="font-bold text-sm">{computeAppLetter(app)}</span>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${getIconColor(app.icon)} text-white`}>
+                      <span className="font-bold text-xs">{computeAppLetter(app)}</span>
                     </div>
                   );
                 })()}
+
+                {/* Tooltip - Apple style with integrated design */}
+                <div
+                  className="absolute -top-1 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-out pointer-events-none z-20 group-hover:-translate-y-6"
+                  style={{
+                    transformOrigin: 'bottom center'
+                  }}
+                >
+                  <div className="relative bg-white/90 dark:bg-gray-900/90 backdrop-blur-md text-gray-800 dark:text-gray-100 px-2 py-1 rounded-md shadow-sm whitespace-nowrap text-xs font-light border border-gray-200/20 dark:border-gray-700/20 tooltip-arrow">
+                    {app.name}
+                  </div>
+                </div>
               </Button>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="rounded-2xl shadow-lg border bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1 min-w-[10rem]">
