@@ -91,6 +91,8 @@ const Index = () => {
   const searchInputRef = useRef(null);
   // 搜索引擎图标触发器引用
   const engineTriggerRef = useRef(null);
+  // 搜索引擎弹层引用
+  const engineContentRef = useRef(null);
   // 搜索按钮引用
   const searchButtonRef = useRef(null);
   // 记录弹层关闭后是否需要恢复搜索框焦点
@@ -382,6 +384,7 @@ const Index = () => {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent 
+                    ref={engineContentRef}
                     className="w-48 p-2 apple-popover" 
                     style={{ transform: 'translateX(-0.25rem)' }} 
                     align="start" 
@@ -459,7 +462,16 @@ const Index = () => {
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setIsSearchFocused(false)}
+                  onBlur={(e) => {
+                    setIsSearchFocused(false);
+                    const next = e.relatedTarget;
+                    const withinTrigger = next ? engineTriggerRef.current?.contains(next) : false;
+                    const withinContent = next ? engineContentRef.current?.contains(next) : false;
+                    if (!withinTrigger && !withinContent) {
+                      shouldRestoreSearchFocusRef.current = false;
+                      setIsEngineMenuOpen(false);
+                    }
+                  }}
                   style={{ fontFamily: '"LXGW WenKai", sans-serif' }}
                 />
                 <Button 
