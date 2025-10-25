@@ -93,6 +93,8 @@ const Index = () => {
   const engineTriggerRef = useRef(null);
   // 搜索按钮引用
   const searchButtonRef = useRef(null);
+  // 记录弹层关闭后是否需要恢复搜索框焦点
+  const shouldRestoreSearchFocusRef = useRef(false);
 
   // 实时更新时间
   useEffect(() => {
@@ -346,7 +348,10 @@ const Index = () => {
             <form onSubmit={handleSearch} className="relative">
               <div className="relative flex items-center">
                 <Popover open={isEngineMenuOpen} onOpenChange={(open) => {
-                        // 仅同步弹层状态；不在关闭时自动回焦，确保外部一次点击即可关闭+失焦
+                        if (open) {
+                          // 仅当打开前搜索框已聚焦时，记录需要回焦
+                          shouldRestoreSearchFocusRef.current = document.activeElement === searchInputRef.current;
+                        }
                         setIsEngineMenuOpen(open);
                       }}>
                   <PopoverTrigger asChild>
@@ -386,17 +391,31 @@ const Index = () => {
                       // 阻止 Radix 打开时将焦点移入内容区域，保持输入框不失焦
                       e.preventDefault();
                     }}
+                    onCloseAutoFocus={(e) => {
+                      if (shouldRestoreSearchFocusRef.current) {
+                        e.preventDefault();
+                        // 等待关闭动画结束后再回焦，防止焦点被触发器重新夺回
+                        requestAnimationFrame(() => {
+                          searchInputRef.current?.focus({ preventScroll: true });
+                        });
+                        shouldRestoreSearchFocusRef.current = false;
+                      }
+                    }}
                     onFocusOutside={(e) => {
                       const t = e.target;
-                      // 若焦点落到输入框或触发器上，则阻止关闭；否则允许默认行为（关闭并触发输入框 blur）
-                      if (searchInputRef.current?.contains(t) || engineTriggerRef.current?.contains(t)) {
+                      // 若焦点落到输入框或触发器或弹层内容上，则阻止关闭
+                      if (searchInputRef.current?.contains(t) ||
+                          engineTriggerRef.current?.contains(t) ||
+                          e.currentTarget?.contains(t)) {
                         e.preventDefault();
                       }
                     }}
                     onInteractOutside={(e) => {
                       const t = e.target;
-                      // 点击输入框或触发器时不关闭；点击其他位置一次即可关闭并触发输入框 blur
-                      if (searchInputRef.current?.contains(t) || engineTriggerRef.current?.contains(t)) {
+                      // 点击输入框、触发器或弹层内容时不关闭
+                      if (searchInputRef.current?.contains(t) ||
+                          engineTriggerRef.current?.contains(t) ||
+                          e.currentTarget?.contains(t)) {
                         e.preventDefault();
                       }
                     }}
@@ -411,15 +430,15 @@ const Index = () => {
                               ? 'bg-gray-100/60 dark:bg-gray-700/20' 
                               : 'hover:bg-gray-50/60 dark:hover:bg-gray-700/10'
                           }`}
+                          onMouseDown={(e) => {
+                            e.preventDefault(); // 阻止失去焦点
+                          }}
                           onClick={() => {
+                            shouldRestoreSearchFocusRef.current = true;
                             setSearchEngine(engine.id);
                             setIsEngineMenuOpen(false);
-                            // 重新聚焦搜索框
-                            setTimeout(() => {
-                              if (searchInputRef.current) {
-                                searchInputRef.current.focus();
-                              }
-                            }, 0);
+                            // 立即重新聚焦搜索框，确保点击后不失去焦点
+                            searchInputRef.current?.focus({ preventScroll: true });
                           }}
                         >
                           <span className="font-bold mr-2" style={{ color: engine.color }}>{engine.icon}</span>
