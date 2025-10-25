@@ -310,6 +310,8 @@ const Index = () => {
     }));
   };
 
+  const backdropFilterValue = `brightness(${backgroundBrightness}%) blur(${backgroundBlur}px)`;
+
   return (
     <div className="min-h-screen flex flex-col overflow-hidden">
       {/* 背景图片容器 */}
@@ -329,9 +331,8 @@ const Index = () => {
       <div 
         className="fixed inset-0 z-0 pointer-events-none transition-all duration-500 ease-in-out"
         style={{
-          backdropFilter: isSearchFocused 
-            ? `brightness(${backgroundBrightness}%) blur(${backgroundBlur}px)` 
-            : 'none',
+          backdropFilter: backdropFilterValue,
+          WebkitBackdropFilter: backdropFilterValue,
           backgroundColor: isSearchFocused 
             ? 'rgba(0, 0, 0, 0.3)' 
             : 'transparent'
