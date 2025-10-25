@@ -97,6 +97,8 @@ const Index = () => {
   const searchButtonRef = useRef(null);
   // 记录弹层关闭后是否需要恢复搜索框焦点
   const shouldRestoreSearchFocusRef = useRef(false);
+  // 标记是否由搜索框主动关闭弹层
+  const closingPopoverViaInputRef = useRef(false);
 
   // 实时更新时间
   useEffect(() => {
@@ -312,6 +314,12 @@ const Index = () => {
 
   const backdropFilterValue = `brightness(${backgroundBrightness}%) blur(${backgroundBlur}px)`;
 
+  useEffect(() => {
+    if (!isEngineMenuOpen) {
+      closingPopoverViaInputRef.current = false;
+    }
+  }, [isEngineMenuOpen]);
+
   return (
     <div className="min-h-screen flex flex-col overflow-hidden">
       {/* 背景图片容器 */}
@@ -406,6 +414,9 @@ const Index = () => {
                       }
                     }}
                     onFocusOutside={(e) => {
+                      if (closingPopoverViaInputRef.current) {
+                        return;
+                      }
                       const t = e.target;
                       // 若焦点落到输入框或触发器或弹层内容上，则阻止关闭
                       if (searchInputRef.current?.contains(t) ||
@@ -415,6 +426,9 @@ const Index = () => {
                       }
                     }}
                     onInteractOutside={(e) => {
+                      if (closingPopoverViaInputRef.current) {
+                        return;
+                      }
                       const t = e.target;
                       // 点击输入框、触发器或弹层内容时不关闭
                       if (searchInputRef.current?.contains(t) ||
@@ -462,6 +476,12 @@ const Index = () => {
                   }`}
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
+                  onPointerDown={() => {
+                    if (isEngineMenuOpen) {
+                      closingPopoverViaInputRef.current = true;
+                      setIsEngineMenuOpen(false);
+                    }
+                  }}
                   onFocus={() => setIsSearchFocused(true)}
                   onBlur={(e) => {
                     setIsSearchFocused(false);
