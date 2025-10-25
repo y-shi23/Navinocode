@@ -493,7 +493,11 @@ const Index = () => {
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md p-6 rounded-2xl apple-popover max-h-[80vh] flex flex-col w-[calc(100vw-2rem)] max-w-sm sm:max-w-md">
-            <div className="space-y-6 overflow-y-auto flex-grow pr-2" style={{ 
+            {/* 固定标题 - 不滚动 */}
+            <h2 className="text-xl font-bold pb-3 border-b border-gray-200/50 dark:border-gray-800/50">设置</h2>
+
+            {/* 滚动内容区域 */}
+            <div className="overflow-y-auto flex-grow pr-2" style={{
               scrollbarWidth: 'thin',
               scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent'
             }}>
@@ -514,10 +518,9 @@ const Index = () => {
                   }
                 `}
               </style>
-              <h2 className="text-xl font-bold">设置</h2>
               
               {/* 组件设置 */}
-              <div>
+              <div className="mt-4">
                 <Label className="text-sm font-medium">组件设置</Label>
                 <Card className="mt-2 rounded-2xl overflow-hidden">
                   <CardContent className="p-0">
@@ -556,7 +559,7 @@ const Index = () => {
               </div>
               
               {/* 搜索引擎设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">搜索引擎</Label>
                 <Card className="mt-2 rounded-2xl overflow-hidden">
                   <CardContent className="p-0">
@@ -583,7 +586,7 @@ const Index = () => {
               </div>
               
               {/* 背景图片设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">背景图片</Label>
                 {!backgroundImage ? (
                   <div 
@@ -655,7 +658,7 @@ const Index = () => {
               </div>
               
               {/* 亮度设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">背景亮度: {backgroundBrightness}%</Label>
                 <Slider
                   value={[backgroundBrightness]}
@@ -668,7 +671,7 @@ const Index = () => {
               </div>
               
               {/* 磨砂效果设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">磨砂效果: {backgroundBlur}px</Label>
                 <Slider
                   value={[backgroundBlur]}
@@ -680,8 +683,8 @@ const Index = () => {
                 />
               </div>
             </div>
-            
-            {/* 关于项目部分 */}
+
+            {/* 关于项目部分 - 固定在底部，不滚动 */}
             <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
