@@ -28,7 +28,7 @@
 /* 引入自定义字体 */
 @font-face {
   font-family: 'LXGW WenKai';
-  src: url('https://pic.oneloved.top/2025-07/LXGWWenKai-Regular_1753944392267.ttf') format('truetype');
+  src: url('/fonts/LXGWWenKai-Regular.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

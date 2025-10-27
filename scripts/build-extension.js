@@ -65,6 +65,22 @@ if (fs.existsSync(indexPath)) {
   fs.writeFileSync(indexPath, htmlContent);
 }
 
+// Fix CSS font paths for extension
+const cssFiles = fs.readdirSync(path.join(extensionDir, 'assets'), { withFileTypes: true })
+  .filter(file => file.isFile() && file.name.endsWith('.css'))
+  .map(file => path.join(extensionDir, 'assets', file.name));
+
+cssFiles.forEach(cssFile => {
+  if (fs.existsSync(cssFile)) {
+    let cssContent = fs.readFileSync(cssFile, 'utf8');
+    // Replace absolute font paths with relative paths
+    cssContent = cssContent.replace(/url\('\/fonts\//g, "url('../fonts/");
+    cssContent = cssContent.replace(/url\("\/fonts\//g, 'url("../fonts/');
+    cssContent = cssContent.replace(/url\(\/fonts\//g, 'url(../fonts/');
+    fs.writeFileSync(cssFile, cssContent);
+  }
+});
+
 // Copy manifest.json
 const manifestSource = path.join(__dirname, '../public/manifest.json');
 const manifestDest = path.join(extensionDir, 'manifest.json');
@@ -75,6 +91,13 @@ const iconsSource = path.join(__dirname, '../public/icons');
 const iconsDest = path.join(extensionDir, 'icons');
 if (fs.existsSync(iconsSource)) {
   copyDir(iconsSource, iconsDest);
+}
+
+// Copy fonts
+const fontsSource = path.join(__dirname, '../public/fonts');
+const fontsDest = path.join(extensionDir, 'fonts');
+if (fs.existsSync(fontsSource)) {
+  copyDir(fontsSource, fontsDest);
 }
 
 console.log('✅ Chrome Extension build completed!');
