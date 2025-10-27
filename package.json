@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:extension": "node scripts/build-extension.js",
+    "validate:extension": "node scripts/validate-extension.js",
+    "generate-icons": "node scripts/generate-icons.js",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
