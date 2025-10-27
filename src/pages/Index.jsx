@@ -81,9 +81,9 @@ const Index = () => {
     // 从localStorage读取组件设置
     const saved = localStorage.getItem('componentSettings');
     return saved ? JSON.parse(saved) : {
-      pomodoro: true,
-      heatmap: true,
-      todo: true
+      pomodoro: false,
+      heatmap: false,
+      todo: false
     };
   });
 
