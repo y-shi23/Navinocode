@@ -91,8 +91,14 @@ const Index = () => {
   const searchInputRef = useRef(null);
   // 搜索引擎图标触发器引用
   const engineTriggerRef = useRef(null);
+  // 搜索引擎弹层引用
+  const engineContentRef = useRef(null);
   // 搜索按钮引用
   const searchButtonRef = useRef(null);
+  // 记录弹层关闭后是否需要恢复搜索框焦点
+  const shouldRestoreSearchFocusRef = useRef(false);
+  // 标记是否由搜索框主动关闭弹层
+  const closingPopoverViaInputRef = useRef(false);
 
   // 实时更新时间
   useEffect(() => {
@@ -306,6 +312,14 @@ const Index = () => {
     }));
   };
 
+  const backdropFilterValue = `brightness(${backgroundBrightness}%) blur(${backgroundBlur}px)`;
+
+  useEffect(() => {
+    if (!isEngineMenuOpen) {
+      closingPopoverViaInputRef.current = false;
+    }
+  }, [isEngineMenuOpen]);
+
   return (
     <div className="min-h-screen flex flex-col overflow-hidden">
       {/* 背景图片容器 */}
@@ -325,9 +339,8 @@ const Index = () => {
       <div 
         className="fixed inset-0 z-0 pointer-events-none transition-all duration-500 ease-in-out"
         style={{
-          backdropFilter: isSearchFocused 
-            ? `brightness(${backgroundBrightness}%) blur(${backgroundBlur}px)` 
-            : 'none',
+          backdropFilter: backdropFilterValue,
+          WebkitBackdropFilter: backdropFilterValue,
           backgroundColor: isSearchFocused 
             ? 'rgba(0, 0, 0, 0.3)' 
             : 'transparent'
@@ -346,7 +359,10 @@ const Index = () => {
             <form onSubmit={handleSearch} className="relative">
               <div className="relative flex items-center">
                 <Popover open={isEngineMenuOpen} onOpenChange={(open) => {
-                        // 仅同步弹层状态；不在关闭时自动回焦，确保外部一次点击即可关闭+失焦
+                        if (open) {
+                          // 仅当打开前搜索框已聚焦时，记录需要回焦
+                          shouldRestoreSearchFocusRef.current = document.activeElement === searchInputRef.current;
+                        }
                         setIsEngineMenuOpen(open);
                       }}>
                   <PopoverTrigger asChild>
@@ -377,6 +393,7 @@ const Index = () => {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent 
+                    ref={engineContentRef}
                     className="w-48 p-2 apple-popover" 
                     style={{ transform: 'translateX(-0.25rem)' }} 
                     align="start" 
@@ -386,17 +403,37 @@ const Index = () => {
                       // 阻止 Radix 打开时将焦点移入内容区域，保持输入框不失焦
                       e.preventDefault();
                     }}
+                    onCloseAutoFocus={(e) => {
+                      if (shouldRestoreSearchFocusRef.current) {
+                        e.preventDefault();
+                        // 等待关闭动画结束后再回焦，防止焦点被触发器重新夺回
+                        requestAnimationFrame(() => {
+                          searchInputRef.current?.focus({ preventScroll: true });
+                        });
+                        shouldRestoreSearchFocusRef.current = false;
+                      }
+                    }}
                     onFocusOutside={(e) => {
+                      if (closingPopoverViaInputRef.current) {
+                        return;
+                      }
                       const t = e.target;
-                      // 若焦点落到输入框或触发器上，则阻止关闭；否则允许默认行为（关闭并触发输入框 blur）
-                      if (searchInputRef.current?.contains(t) || engineTriggerRef.current?.contains(t)) {
+                      // 若焦点落到输入框或触发器或弹层内容上，则阻止关闭
+                      if (searchInputRef.current?.contains(t) ||
+                          engineTriggerRef.current?.contains(t) ||
+                          e.currentTarget?.contains(t)) {
                         e.preventDefault();
                       }
                     }}
                     onInteractOutside={(e) => {
+                      if (closingPopoverViaInputRef.current) {
+                        return;
+                      }
                       const t = e.target;
-                      // 点击输入框或触发器时不关闭；点击其他位置一次即可关闭并触发输入框 blur
-                      if (searchInputRef.current?.contains(t) || engineTriggerRef.current?.contains(t)) {
+                      // 点击输入框、触发器或弹层内容时不关闭
+                      if (searchInputRef.current?.contains(t) ||
+                          engineTriggerRef.current?.contains(t) ||
+                          e.currentTarget?.contains(t)) {
                         e.preventDefault();
                       }
                     }}
@@ -411,15 +448,15 @@ const Index = () => {
                               ? 'bg-gray-100/60 dark:bg-gray-700/20' 
                               : 'hover:bg-gray-50/60 dark:hover:bg-gray-700/10'
                           }`}
+                          onMouseDown={(e) => {
+                            e.preventDefault(); // 阻止失去焦点
+                          }}
                           onClick={() => {
+                            shouldRestoreSearchFocusRef.current = true;
                             setSearchEngine(engine.id);
                             setIsEngineMenuOpen(false);
-                            // 重新聚焦搜索框
-                            setTimeout(() => {
-                              if (searchInputRef.current) {
-                                searchInputRef.current.focus();
-                              }
-                            }, 0);
+                            // 立即重新聚焦搜索框，确保点击后不失去焦点
+                            searchInputRef.current?.focus({ preventScroll: true });
                           }}
                         >
                           <span className="font-bold mr-2" style={{ color: engine.color }}>{engine.icon}</span>
@@ -439,8 +476,23 @@ const Index = () => {
                   }`}
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
+                  onPointerDown={() => {
+                    if (isEngineMenuOpen) {
+                      closingPopoverViaInputRef.current = true;
+                      setIsEngineMenuOpen(false);
+                    }
+                  }}
                   onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setIsSearchFocused(false)}
+                  onBlur={(e) => {
+                    setIsSearchFocused(false);
+                    const next = e.relatedTarget;
+                    const withinTrigger = next ? engineTriggerRef.current?.contains(next) : false;
+                    const withinContent = next ? engineContentRef.current?.contains(next) : false;
+                    if (!withinTrigger && !withinContent) {
+                      shouldRestoreSearchFocusRef.current = false;
+                      setIsEngineMenuOpen(false);
+                    }
+                  }}
                   style={{ fontFamily: '"LXGW WenKai", sans-serif' }}
                 />
                 <Button 
@@ -493,7 +545,11 @@ const Index = () => {
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md p-6 rounded-2xl apple-popover max-h-[80vh] flex flex-col w-[calc(100vw-2rem)] max-w-sm sm:max-w-md">
-            <div className="space-y-6 overflow-y-auto flex-grow pr-2" style={{ 
+            {/* 固定标题 - 不滚动 */}
+            <h2 className="text-xl font-bold pb-3 border-b border-gray-200/50 dark:border-gray-800/50">设置</h2>
+
+            {/* 滚动内容区域 */}
+            <div className="overflow-y-auto flex-grow pr-2" style={{
               scrollbarWidth: 'thin',
               scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent'
             }}>
@@ -514,10 +570,9 @@ const Index = () => {
                   }
                 `}
               </style>
-              <h2 className="text-xl font-bold">设置</h2>
               
               {/* 组件设置 */}
-              <div>
+              <div className="mt-4">
                 <Label className="text-sm font-medium">组件设置</Label>
                 <Card className="mt-2 rounded-2xl overflow-hidden">
                   <CardContent className="p-0">
@@ -556,7 +611,7 @@ const Index = () => {
               </div>
               
               {/* 搜索引擎设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">搜索引擎</Label>
                 <Card className="mt-2 rounded-2xl overflow-hidden">
                   <CardContent className="p-0">
@@ -583,7 +638,7 @@ const Index = () => {
               </div>
               
               {/* 背景图片设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">背景图片</Label>
                 {!backgroundImage ? (
                   <div 
@@ -655,7 +710,7 @@ const Index = () => {
               </div>
               
               {/* 亮度设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">背景亮度: {backgroundBrightness}%</Label>
                 <Slider
                   value={[backgroundBrightness]}
@@ -668,7 +723,7 @@ const Index = () => {
               </div>
               
               {/* 磨砂效果设置 */}
-              <div>
+              <div className="mt-6">
                 <Label className="text-sm font-medium">磨砂效果: {backgroundBlur}px</Label>
                 <Slider
                   value={[backgroundBlur]}
@@ -680,8 +735,8 @@ const Index = () => {
                 />
               </div>
             </div>
-            
-            {/* 关于项目部分 */}
+
+            {/* 关于项目部分 - 固定在底部，不滚动 */}
             <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
