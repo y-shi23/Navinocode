@@ -1,0 +1,22 @@
+main:
+  push:
+    - stages:
+        - name: sync to github
+          imports: https://cnb.cool/1oved/secrets/-/blob/main/sync-env.yml
+          image: tencentcom/git-sync
+          settings:
+            target_url: https://github.com/y-shi23/Navinocode.git
+            auth_type: https
+            username: ${GIT_USERNAME}
+            password: ${GIT_ACCESS_TOKEN}
+$:
+  vscode:
+    - docker:
+        image: docker.cnb.cool/1oved/dev-env-next:latest
+      services:
+        - vscode
+        - docker
+      # 开发环境启动后会执行的任务
+      stages:
+        - name: ls
+          script: ls -al
