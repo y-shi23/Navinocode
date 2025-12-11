@@ -3,21 +3,25 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const TodoWidget = () => {
-  const [todos, setTodos] = useState(() => {
+const TodoWidget = ({ todos: controlledTodos, onChange }) => {
+  const [localTodos, setLocalTodos] = useState(() => {
     const savedTodos = localStorage.getItem('todos');
     return savedTodos ? JSON.parse(savedTodos) : [
       { id: 1, text: 'Hello World', completed: false }
     ];
   });
+  const todos = controlledTodos ?? localTodos;
+  const setTodos = onChange ?? setLocalTodos;
   const [newTodo, setNewTodo] = useState('');
   const [showInput, setShowInput] = useState(false);
   const inputRef = useRef(null);
 
   // 保存待办事项到本地存储
   useEffect(() => {
-    localStorage.setItem('todos', JSON.stringify(todos));
-  }, [todos]);
+    if (!onChange) {
+      localStorage.setItem('todos', JSON.stringify(localTodos));
+    }
+  }, [localTodos, onChange]);
 
   const addTodo = () => {
     if (newTodo.trim() !== '') {

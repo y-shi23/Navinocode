@@ -9,13 +9,16 @@ import { Label } from '@/components/ui/label';
 import TodoWidget from '@/components/TodoWidget';
 import DraggableWidget from '@/components/DraggableWidget';
 import { Input } from '@/components/ui/input';
-import { Globe, Search, X, Upload, Plus, Settings } from 'lucide-react';
+import { Globe, Search, X, Upload, Settings, RefreshCcw } from 'lucide-react';
 import PomodoroTimer from '@/components/PomodoroTimer';
 import { recordUsageEvent } from '@/lib/usageEvents';
 import AppSelector from '@/components/AppSelector';
 import DraggableBottomBar from '@/components/DraggableBottomBar';
 import { Button } from '@/components/ui/button';
 import { useGitHubStars } from '@/components/useGitHubStars';
+import { toast } from 'sonner';
+import { getStoredSupabaseConfig, getSupabaseClientId, getStoredSyncId, persistSupabaseConfig, persistSyncId } from '@/integrations/supabase/client';
+import { pullCloudState, pushCloudState } from '@/lib/cloudSync';
 const Index = () => {
   const { stars, loading: starsLoading, error: starsError } = useGitHubStars();
   const [searchValue, setSearchValue] = useState('');
@@ -58,10 +61,28 @@ const Index = () => {
     // 从localStorage读取搜索引擎设置
     return localStorage.getItem('searchEngine') || 'bing';
   });
+  const [todos, setTodos] = useState(() => {
+    const savedTodos = localStorage.getItem('todos');
+    return savedTodos ? JSON.parse(savedTodos) : [
+      { id: 1, text: 'Hello World', completed: false }
+    ];
+  });
   const [hitokoto, setHitokoto] = useState('正在加载一言...');
   // 背景直链输入与校验状态
   const [bgUrlInput, setBgUrlInput] = useState('');
   const [bgUrlError, setBgUrlError] = useState('');
+  const initialSupabaseConfig = getStoredSupabaseConfig();
+  const [supabaseUrl, setSupabaseUrl] = useState(initialSupabaseConfig.url);
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState(initialSupabaseConfig.anonKey);
+  const [supabaseSyncId, setSupabaseSyncId] = useState(getStoredSyncId());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(() => localStorage.getItem('lastSyncedAt') || '');
+  const clientIdRef = useRef(getSupabaseClientId());
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => {
+    const saved = localStorage.getItem('autoSyncEnabled');
+    return saved ? saved === 'true' : true;
+  });
+  const autoSyncTimerRef = useRef(null);
   
   // 内置句子作为一言API失败时的备选
   const fallbackSentences = [
@@ -153,12 +174,24 @@ const Index = () => {
     localStorage.setItem('componentSettings', JSON.stringify(componentSettings));
   }, [componentSettings]);
 
+  useEffect(() => {
+    persistSyncId(supabaseSyncId);
+  }, [supabaseSyncId]);
+
+  useEffect(() => {
+    localStorage.setItem('autoSyncEnabled', autoSyncEnabled ? 'true' : 'false');
+  }, [autoSyncEnabled]);
+
   // 持久化应用顺序
   useEffect(() => {
     try {
       localStorage.setItem('apps', JSON.stringify(apps));
     } catch {}
   }, [apps]);
+
+  useEffect(() => {
+    localStorage.setItem('todos', JSON.stringify(todos));
+  }, [todos]);
 
   // 页面加载时自动聚焦到搜索框
   useEffect(() => {
@@ -303,6 +336,10 @@ const Index = () => {
 
   // 确定使用的背景图片
   const effectiveBackgroundImage = backgroundImage || getRandomBackground();
+  const supabaseConfig = {
+    url: (supabaseUrl || '').trim(),
+    anonKey: (supabaseAnonKey || '').trim()
+  };
 
   // 切换组件启用状态
   const toggleComponent = (component) => {
@@ -319,6 +356,136 @@ const Index = () => {
       closingPopoverViaInputRef.current = false;
     }
   }, [isEngineMenuOpen]);
+
+  useEffect(() => {
+    const hasSyncId = (supabaseSyncId || '').trim().length > 0;
+    if (!autoSyncEnabled || !supabaseConfig.url || !supabaseConfig.anonKey || !hasSyncId) {
+      return;
+    }
+    handlePullFromCloud({ silent: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabaseConfig.url, supabaseConfig.anonKey, supabaseSyncId, autoSyncEnabled]);
+
+  useEffect(() => {
+    if (autoSyncTimerRef.current) {
+      clearTimeout(autoSyncTimerRef.current);
+    }
+    const hasSyncId = (supabaseSyncId || '').trim().length > 0;
+    if (!autoSyncEnabled || !supabaseConfig.url || !supabaseConfig.anonKey || !hasSyncId) {
+      return;
+    }
+    autoSyncTimerRef.current = setTimeout(() => {
+      handlePushToCloud({ silent: true });
+    }, 1500);
+
+    return () => {
+      if (autoSyncTimerRef.current) {
+        clearTimeout(autoSyncTimerRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    apps,
+    todos,
+    componentSettings,
+    searchEngine,
+    backgroundImage,
+    backgroundBrightness,
+    backgroundBlur,
+    supabaseConfig.url,
+    supabaseConfig.anonKey,
+    supabaseSyncId,
+    autoSyncEnabled
+  ]);
+
+  const applyCloudPayload = (payload) => {
+    if (Array.isArray(payload.apps)) setApps(payload.apps);
+    if (Array.isArray(payload.todos)) setTodos(payload.todos);
+    if (payload.componentSettings) setComponentSettings(payload.componentSettings);
+    if (typeof payload.searchEngine === 'string') setSearchEngine(payload.searchEngine);
+    if (typeof payload.backgroundBrightness === 'number') {
+      setBackgroundBrightness(payload.backgroundBrightness);
+    }
+    if (typeof payload.backgroundBlur === 'number') {
+      setBackgroundBlur(payload.backgroundBlur);
+    }
+    if (payload.backgroundImage === null) {
+      setBackgroundImage('');
+    } else if (typeof payload.backgroundImage === 'string') {
+      setBackgroundImage(payload.backgroundImage);
+    }
+  };
+
+  const handleSaveSupabaseConfig = () => {
+    persistSupabaseConfig(supabaseConfig);
+    toast('已保存 Supabase 配置');
+  };
+
+  const handlePullFromCloud = async (options = { silent: false }) => {
+    if (!supabaseConfig.url || !supabaseConfig.anonKey) {
+      if (!options.silent) toast('请先填写 Supabase URL 和 anon key');
+      return;
+    }
+    const syncId = (supabaseSyncId || '').trim();
+    if (!syncId) {
+      if (!options.silent) toast('请设置同步 ID');
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      const { payload, updatedAt } = await pullCloudState(supabaseConfig, undefined, syncId);
+      if (!payload) {
+        if (!options.silent) toast('云端暂无数据，可先上传本地数据');
+        return;
+      }
+      applyCloudPayload(payload);
+      if (updatedAt) {
+        setLastSyncedAt(updatedAt);
+        localStorage.setItem('lastSyncedAt', updatedAt);
+      }
+      if (!options.silent) toast('已从云端恢复数据');
+    } catch (error) {
+      console.error('拉取云端数据失败', error);
+      if (!options.silent) toast(`拉取失败：${error.message || '未知错误'}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handlePushToCloud = async (options = { silent: false }) => {
+    if (!supabaseConfig.url || !supabaseConfig.anonKey) {
+      if (!options.silent) toast('请先填写 Supabase URL 和 anon key');
+      return;
+    }
+    const syncId = (supabaseSyncId || '').trim();
+    if (!syncId) {
+      if (!options.silent) toast('请设置同步 ID');
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      const payload = {
+        apps,
+        todos,
+        componentSettings,
+        searchEngine,
+        backgroundImage,
+        backgroundBrightness,
+        backgroundBlur
+      };
+      await pushCloudState(supabaseConfig, payload, undefined, syncId);
+      const now = new Date().toISOString();
+      setLastSyncedAt(now);
+      localStorage.setItem('lastSyncedAt', now);
+      persistSupabaseConfig(supabaseConfig);
+      if (!options.silent) toast('已上传到云端');
+    } catch (error) {
+      console.error('上传云端数据失败', error);
+      if (!options.silent) toast(`上传失败：${error.message || '未知错误'}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col overflow-hidden">
@@ -529,7 +696,7 @@ const Index = () => {
         )}
         {componentSettings.todo && (
           <DraggableWidget id="widget-todo" defaultPos={{ x: 24, y: 620 }}>
-            <TodoWidget />
+            <TodoWidget todos={todos} onChange={setTodos} />
           </DraggableWidget>
         )}
 
@@ -606,6 +773,84 @@ const Index = () => {
                         <div className={`w-4 h-4 rounded-full bg-white transform transition-transform ${componentSettings.todo ? 'translate-x-5' : ''}`} />
                       </div>
                     </Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 云同步 */}
+              <div className="mt-6">
+                <Label className="text-sm font-medium">云同步（Supabase 直连）</Label>
+                <Card className="mt-2 rounded-2xl overflow-hidden">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="grid gap-2">
+                      <Input
+                        type="url"
+                        inputMode="url"
+                        placeholder="Supabase 项目 URL，如 https://xxx.supabase.co"
+                        value={supabaseUrl}
+                        onChange={(e) => setSupabaseUrl(e.target.value)}
+                        className="rounded-2xl"
+                      />
+                      <Input
+                        type="password"
+                        placeholder="Supabase anon key"
+                        value={supabaseAnonKey}
+                        onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                        className="rounded-2xl"
+                      />
+                      <Input
+                        placeholder="同步 ID（多个设备填同一个字符串即可共享数据）"
+                        value={supabaseSyncId}
+                        onChange={(e) => setSupabaseSyncId(e.target.value)}
+                        className="rounded-2xl"
+                      />
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 leading-relaxed">
+                      <p>表名：navinocode_states，列：client_id(text)、data(jsonb)、updated_at(timestamptz)。开启 RLS 后给 anon 角色添加只允许 client_id 匹配的读写策略。</p>
+                      <p className="flex items-center gap-1">
+                        <Globe className="h-3 w-3" />
+                        本机默认 ID：<code className="bg-black/5 dark:bg-white/10 px-2 py-1 rounded">{clientIdRef.current}</code>（若不填“同步 ID”则使用本机 ID）
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        className="rounded-2xl"
+                        onClick={handleSaveSupabaseConfig}
+                        disabled={isSyncing}
+                      >
+                        保存配置
+                      </Button>
+                      <Button
+                        variant={autoSyncEnabled ? "secondary" : "outline"}
+                        className="rounded-2xl"
+                        onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
+                      >
+                        {autoSyncEnabled ? '自动同步：开' : '自动同步：关'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-2xl"
+                        onClick={handlePullFromCloud}
+                        disabled={isSyncing}
+                      >
+                        <RefreshCcw className="h-4 w-4 mr-2" />
+                        从云端拉取
+                      </Button>
+                      <Button
+                        className="rounded-2xl"
+                        onClick={handlePushToCloud}
+                        disabled={isSyncing}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        上传本地数据
+                      </Button>
+                    </div>
+                    {lastSyncedAt && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        上次同步：{new Date(lastSyncedAt).toLocaleString('zh-CN')}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
