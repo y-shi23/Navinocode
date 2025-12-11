@@ -328,11 +328,36 @@ const Index = () => {
 
   // 搜索引擎配置
   const searchEngines = [
-    { id: 'google', name: 'Google', icon: 'G', color: '#4285F4' },
-    { id: 'bing', name: 'Bing', icon: 'B', color: '#008373' },
-    { id: 'baidu', name: '百度', icon: '百', color: '#2932E1' },
-    { id: 'duckduckgo', name: 'DuckDuckGo', icon: 'D', color: '#DE5833' }
+    { id: 'google', name: 'Google', iconSrc: '/svgs/google.svg', fallback: 'G', color: '#4285F4' },
+    { id: 'bing', name: 'Bing', iconSrc: '/svgs/bing.svg', fallback: 'B', color: '#008373' },
+    { id: 'baidu', name: '百度', iconSrc: '/svgs/baidu.svg', fallback: '百',color: '#2932E1' },
+    { id: 'duckduckgo', name: 'DuckDuckGo', iconSrc: '/svgs/duckduckgo.svg', fallback: 'D', color: '#DE5833' }
   ];
+
+  const renderEngineIcon = (engine, { sizeClass = 'h-6 w-6', textClass = 'text-2xl' } = {}) => {
+    if (engine?.iconSrc) {
+      return (
+        <img
+          src={engine.iconSrc}
+          alt={`${engine.name} icon`}
+          className={sizeClass}
+          draggable="false"
+        />
+      );
+    }
+
+    return (
+      <span
+        className={`font-bold ${textClass}`}
+        style={{ 
+          color: engine?.color || '#4285F4',
+          filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.9)) drop-shadow(0 0 4px rgba(0,0,0,0.3))'
+        }}
+      >
+        {engine?.fallback || 'G'}
+      </span>
+    );
+  };
 
   // 确定使用的背景图片
   const effectiveBackgroundImage = backgroundImage || getRandomBackground();
@@ -547,15 +572,7 @@ const Index = () => {
                     >
                       {(() => {
                         const currentEngine = searchEngines.find(engine => engine.id === searchEngine);
-                        const color = currentEngine?.color || '#4285F4';
-                        return (
-                          <span className="font-bold text-2xl" style={{ 
-                            color: color,
-                            filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.9)) drop-shadow(0 0 4px rgba(0,0,0,0.3))'
-                          }}>
-                            {currentEngine?.icon || 'G'}
-                          </span>
-                        );
+                        return renderEngineIcon(currentEngine, { sizeClass: 'h-7 w-7', textClass: 'text-2xl' });
                       })()}
                     </Button>
                   </PopoverTrigger>
@@ -626,8 +643,10 @@ const Index = () => {
                             searchInputRef.current?.focus({ preventScroll: true });
                           }}
                         >
-                          <span className="font-bold mr-2" style={{ color: engine.color }}>{engine.icon}</span>
-                          <span>{engine.name}</span>
+                          <div className="flex items-center">
+                            {renderEngineIcon(engine, { sizeClass: 'h-5 w-5', textClass: 'text-lg' })}
+                            <span className="ml-2">{engine.name}</span>
+                          </div>
                         </Button>
                       ))}
                     </div>
@@ -871,8 +890,10 @@ const Index = () => {
                         } ${engine.id !== 'google' ? 'border-t border-gray-100/20 dark:border-gray-800/50' : ''}`}
                         onClick={() => setSearchEngine(engine.id)}
                       >
-                        <span className="font-bold text-lg mr-3" style={{ color: engine.color }}>{engine.icon}</span>
-                        <span>{engine.name}</span>
+                        <div className="flex items-center">
+                          {renderEngineIcon(engine, { sizeClass: 'h-5 w-5', textClass: 'text-lg' })}
+                          <span className="ml-2">{engine.name}</span>
+                        </div>
                         {searchEngine === engine.id && (
                           <div className="w-2 h-2 rounded-full bg-blue-500 ml-auto" />
                         )}
