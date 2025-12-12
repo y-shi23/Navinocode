@@ -22,6 +22,20 @@ import { pullCloudState, pushCloudState } from '@/lib/cloudSync';
 const Index = () => {
   const { stars, loading: starsLoading, error: starsError } = useGitHubStars();
   const [searchValue, setSearchValue] = useState('');
+  const SEARCH_HISTORY_KEY = 'searchHistory';
+  const [searchHistory, setSearchHistory] = useState(() => {
+    try {
+      const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+  const [bingSuggestions, setBingSuggestions] = useState([]);
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false);
+  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
+  const [activeSuggestIndex, setActiveSuggestIndex] = useState(-1);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState(() => {
@@ -116,10 +130,14 @@ const Index = () => {
   const engineContentRef = useRef(null);
   // 搜索按钮引用
   const searchButtonRef = useRef(null);
+  // 搜索建议面板引用
+  const suggestionPanelRef = useRef(null);
   // 记录弹层关闭后是否需要恢复搜索框焦点
   const shouldRestoreSearchFocusRef = useRef(false);
   // 标记是否由搜索框主动关闭弹层
   const closingPopoverViaInputRef = useRef(false);
+  const suggestionAbortRef = useRef(null);
+  const suggestionDebounceRef = useRef(null);
 
   // 实时更新时间
   useEffect(() => {
@@ -226,32 +244,148 @@ const Index = () => {
     };
   }, [searchValue]);
 
+  const persistSearchHistory = (nextHistory) => {
+    setSearchHistory(nextHistory);
+    try {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(nextHistory));
+    } catch {}
+  };
+
+  const addToSearchHistory = (rawTerm) => {
+    const term = (rawTerm || '').trim();
+    if (!term) return;
+
+    const next = [term, ...searchHistory.filter((t) => t !== term)].slice(0, 30);
+    persistSearchHistory(next);
+  };
+
+  const doSearch = (rawValue) => {
+    const value = (rawValue || '').trim();
+    if (!value) return;
+
+    setIsSuggestOpen(false);
+    setActiveSuggestIndex(-1);
+    setIsEngineMenuOpen(false);
+    shouldRestoreSearchFocusRef.current = false;
+
+    // 记录搜索事件 + 本地历史
+    recordUsageEvent('search');
+    addToSearchHistory(value);
+
+    // 检查是否为有效URL
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      window.open(value, '_blank');
+    } else {
+      // 根据选择的搜索引擎进行搜索
+      const searchUrls = {
+        google: `https://www.google.com/search?q=${encodeURIComponent(value)}`,
+        bing: `https://www.bing.com/search?q=${encodeURIComponent(value)}`,
+        baidu: `https://www.baidu.com/s?wd=${encodeURIComponent(value)}`,
+        duckduckgo: `https://duckduckgo.com/?q=${encodeURIComponent(value)}`
+      };
+      window.open(searchUrls[searchEngine], '_blank');
+    }
+
+    // 清空搜索框并保持聚焦
+    setSearchValue('');
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus({ preventScroll: true });
+    });
+  };
+
   const handleSearch = (e) => {
     e.preventDefault();
-    if (searchValue) {
-      // 记录搜索事件
-      recordUsageEvent('search');
-      // 检查是否为有效URL
-      if (searchValue.startsWith('http://') || searchValue.startsWith('https://')) {
-        window.open(searchValue, '_blank');
-      } else {
-        // 根据选择的搜索引擎进行搜索
-        const searchUrls = {
-          google: `https://www.google.com/search?q=${encodeURIComponent(searchValue)}`,
-          bing: `https://www.bing.com/search?q=${encodeURIComponent(searchValue)}`,
-          baidu: `https://www.baidu.com/s?wd=${encodeURIComponent(searchValue)}`,
-          duckduckgo: `https://duckduckgo.com/?q=${encodeURIComponent(searchValue)}`
-        };
-        window.open(searchUrls[searchEngine], '_blank');
-      }
-      
-      // 清空搜索框并保持聚焦
-      setSearchValue('');
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    }
+    doSearch(searchValue);
   };
+
+  const normalizedQuery = (searchValue || '').trim();
+  const localHistoryMatches = normalizedQuery
+    ? searchHistory.filter((t) => t.toLowerCase().includes(normalizedQuery.toLowerCase())).slice(0, 5)
+    : [];
+
+  const mergedSuggestions = (() => {
+    const seen = new Set();
+    const out = [];
+    for (const t of localHistoryMatches) {
+      const key = `h:${t}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ value: t, source: 'history' });
+    }
+    for (const t of bingSuggestions) {
+      if (typeof t !== 'string') continue;
+      const key = `s:${t}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ value: t, source: 'bing' });
+    }
+    // 去重（历史与 bing 相同文案时）
+    const seenText = new Set();
+    const dedup = [];
+    for (const item of out) {
+      const k = item.value.toLowerCase();
+      if (seenText.has(k)) continue;
+      seenText.add(k);
+      dedup.push(item);
+    }
+    return dedup.slice(0, 8);
+  })();
+
+  useEffect(() => {
+    if (!isSearchFocused || !normalizedQuery) {
+      setBingSuggestions([]);
+      setIsSuggestLoading(false);
+      setIsSuggestOpen(false);
+      setActiveSuggestIndex(-1);
+      if (suggestionDebounceRef.current) {
+        clearTimeout(suggestionDebounceRef.current);
+        suggestionDebounceRef.current = null;
+      }
+      if (suggestionAbortRef.current) {
+        suggestionAbortRef.current.abort();
+        suggestionAbortRef.current = null;
+      }
+      return;
+    }
+
+    setIsSuggestOpen(true);
+    setActiveSuggestIndex(-1);
+    setIsSuggestLoading(true);
+
+    if (suggestionDebounceRef.current) {
+      clearTimeout(suggestionDebounceRef.current);
+    }
+    if (suggestionAbortRef.current) {
+      suggestionAbortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    suggestionAbortRef.current = controller;
+    suggestionDebounceRef.current = setTimeout(async () => {
+      try {
+        const url = `https://api.bing.com/osjson.aspx?query=${encodeURIComponent(normalizedQuery)}`;
+        const response = await fetch(url, { signal: controller.signal });
+        const json = await response.json();
+        const list = Array.isArray(json) && Array.isArray(json[1]) ? json[1] : [];
+        setBingSuggestions(list.slice(0, 8));
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          setBingSuggestions([]);
+        }
+      } finally {
+        setIsSuggestLoading(false);
+      }
+    }, 220);
+
+    return () => {
+      if (suggestionDebounceRef.current) {
+        clearTimeout(suggestionDebounceRef.current);
+        suggestionDebounceRef.current = null;
+      }
+      controller.abort();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedQuery, isSearchFocused]);
 
   // 获取格式化时间
   const getFormattedTime = () => {
