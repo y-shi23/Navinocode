@@ -1,8 +1,7 @@
+项目为MIT LICENSE，任何基于本项目的改动都不强制申明、引用。欢迎各种修改、衍生。
+
 # 环境安装指南
-## NVM 安装
-``` 
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-```
+
 ## Node.js 16 安装
 ```
 nvm install 16
