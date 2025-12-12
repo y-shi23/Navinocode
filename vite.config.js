@@ -38,6 +38,13 @@ export default defineConfig({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      '/bing-suggest': {
+        target: 'https://api.bing.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/bing-suggest/, ''),
+      },
+    },
   },
   plugins,
   base: publicPath,

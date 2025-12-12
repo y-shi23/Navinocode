@@ -136,8 +136,9 @@ const Index = () => {
   const shouldRestoreSearchFocusRef = useRef(false);
   // 标记是否由搜索框主动关闭弹层
   const closingPopoverViaInputRef = useRef(false);
-  const suggestionAbortRef = useRef(null);
   const suggestionDebounceRef = useRef(null);
+  const suggestionJsonpCleanupRef = useRef(null);
+  const suggestionRequestIdRef = useRef(0);
 
   // 实时更新时间
   useEffect(() => {
@@ -341,9 +342,9 @@ const Index = () => {
         clearTimeout(suggestionDebounceRef.current);
         suggestionDebounceRef.current = null;
       }
-      if (suggestionAbortRef.current) {
-        suggestionAbortRef.current.abort();
-        suggestionAbortRef.current = null;
+      if (suggestionJsonpCleanupRef.current) {
+        suggestionJsonpCleanupRef.current();
+        suggestionJsonpCleanupRef.current = null;
       }
       return;
     }
@@ -355,25 +356,65 @@ const Index = () => {
     if (suggestionDebounceRef.current) {
       clearTimeout(suggestionDebounceRef.current);
     }
-    if (suggestionAbortRef.current) {
-      suggestionAbortRef.current.abort();
+
+    if (suggestionJsonpCleanupRef.current) {
+      suggestionJsonpCleanupRef.current();
+      suggestionJsonpCleanupRef.current = null;
     }
 
-    const controller = new AbortController();
-    suggestionAbortRef.current = controller;
+    const requestId = ++suggestionRequestIdRef.current;
+
+    const fetchBingSuggestionsJsonp = (query) => {
+      return new Promise((resolve, reject) => {
+        const callbackName = `__bing_suggest_cb_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+        const script = document.createElement('script');
+        const timeoutId = setTimeout(() => {
+          cleanup();
+          reject(new Error('Bing suggestions timeout'));
+        }, 4500);
+
+        const cleanup = () => {
+          clearTimeout(timeoutId);
+          try {
+            delete window[callbackName];
+          } catch {
+            window[callbackName] = undefined;
+          }
+          script.remove();
+        };
+
+        window[callbackName] = (data) => {
+          cleanup();
+          resolve(data);
+        };
+
+        // OpenSearch JSONP 常见参数是 callback
+        script.src = `https://api.bing.com/osjson.aspx?query=${encodeURIComponent(query)}&callback=${encodeURIComponent(callbackName)}`;
+        script.async = true;
+        script.onerror = () => {
+          cleanup();
+          reject(new Error('Bing suggestions load error'));
+        };
+
+        document.body.appendChild(script);
+
+        // 允许外部主动取消
+        suggestionJsonpCleanupRef.current = cleanup;
+      });
+    };
     suggestionDebounceRef.current = setTimeout(async () => {
       try {
-        const url = `https://api.bing.com/osjson.aspx?query=${encodeURIComponent(normalizedQuery)}`;
-        const response = await fetch(url, { signal: controller.signal });
-        const json = await response.json();
+        const json = await fetchBingSuggestionsJsonp(normalizedQuery);
+        if (requestId !== suggestionRequestIdRef.current) return;
         const list = Array.isArray(json) && Array.isArray(json[1]) ? json[1] : [];
         setBingSuggestions(list.slice(0, 8));
       } catch (error) {
-        if (error?.name !== 'AbortError') {
-          setBingSuggestions([]);
-        }
+        if (requestId !== suggestionRequestIdRef.current) return;
+        setBingSuggestions([]);
       } finally {
-        setIsSuggestLoading(false);
+        if (requestId === suggestionRequestIdRef.current) {
+          setIsSuggestLoading(false);
+        }
       }
     }, 220);
 
@@ -382,7 +423,10 @@ const Index = () => {
         clearTimeout(suggestionDebounceRef.current);
         suggestionDebounceRef.current = null;
       }
-      controller.abort();
+      if (suggestionJsonpCleanupRef.current) {
+        suggestionJsonpCleanupRef.current();
+        suggestionJsonpCleanupRef.current = null;
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedQuery, isSearchFocused]);
@@ -795,7 +839,50 @@ const Index = () => {
                     isSearchFocused ? 'pl-14 pr-16 text-left' : 'pl-4 pr-4 text-center placeholder:text-center'
                   }`}
                   value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
+                  onChange={(e) => {
+                    setSearchValue(e.target.value);
+                    setActiveSuggestIndex(-1);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!isSuggestOpen) {
+                      return;
+                    }
+
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setIsSuggestOpen(false);
+                      setActiveSuggestIndex(-1);
+                      return;
+                    }
+
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      if (!mergedSuggestions.length) return;
+                      setActiveSuggestIndex((prev) => {
+                        const next = prev + 1;
+                        return next >= mergedSuggestions.length ? 0 : next;
+                      });
+                      return;
+                    }
+
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      if (!mergedSuggestions.length) return;
+                      setActiveSuggestIndex((prev) => {
+                        const next = prev - 1;
+                        return next < 0 ? mergedSuggestions.length - 1 : next;
+                      });
+                      return;
+                    }
+
+                    if (e.key === 'Enter' && activeSuggestIndex >= 0) {
+                      e.preventDefault();
+                      const picked = mergedSuggestions[activeSuggestIndex];
+                      if (picked?.value) {
+                        doSearch(picked.value);
+                      }
+                    }
+                  }}
                   onPointerDown={() => {
                     if (isEngineMenuOpen) {
                       closingPopoverViaInputRef.current = true;
@@ -808,9 +895,15 @@ const Index = () => {
                     const next = e.relatedTarget;
                     const withinTrigger = next ? engineTriggerRef.current?.contains(next) : false;
                     const withinContent = next ? engineContentRef.current?.contains(next) : false;
+                    const withinSuggest = next ? suggestionPanelRef.current?.contains(next) : false;
                     if (!withinTrigger && !withinContent) {
                       shouldRestoreSearchFocusRef.current = false;
                       setIsEngineMenuOpen(false);
+                    }
+
+                    if (!withinSuggest) {
+                      setIsSuggestOpen(false);
+                      setActiveSuggestIndex(-1);
                     }
                   }}
                   style={{ fontFamily: '"LXGW WenKai", sans-serif' }}
@@ -829,6 +922,55 @@ const Index = () => {
                   <Search className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                 </Button>
               </div>
+
+              {isSearchFocused && isSuggestOpen && normalizedQuery && (mergedSuggestions.length > 0 || isSuggestLoading) && (
+                <div
+                  ref={suggestionPanelRef}
+                  className="absolute left-0 right-0 top-full mt-2 z-20"
+                >
+                  <div className="apple-popover rounded-2xl overflow-hidden bg-white/70 dark:bg-gray-900/40 backdrop-blur-md border border-gray-200/40 dark:border-gray-800/40 shadow-lg">
+                    <div className="max-h-72 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
+                      {isSuggestLoading && (
+                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                          正在获取搜索建议…
+                        </div>
+                      )}
+
+                      {mergedSuggestions.map((item, idx) => {
+                        const active = idx === activeSuggestIndex;
+                        return (
+                          <button
+                            key={`${item.source}:${item.value}`}
+                            type="button"
+                            className={`w-full flex items-center gap-2 px-4 py-3 text-left text-gray-800 dark:text-gray-100 transition-colors ${
+                              active
+                                ? 'bg-gray-100/70 dark:bg-gray-700/30'
+                                : 'hover:bg-gray-50/70 dark:hover:bg-gray-700/20'
+                            } ${idx === 0 ? '' : 'border-t border-gray-100/40 dark:border-gray-800/40'}`}
+                            onMouseDown={(e) => {
+                              // 保持输入框不失焦，避免 blur 导致面板瞬间关闭
+                              e.preventDefault();
+                            }}
+                            onMouseEnter={() => setActiveSuggestIndex(idx)}
+                            onClick={() => doSearch(item.value)}
+                          >
+                            <span className="flex-1 truncate">{item.value}</span>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full border ${
+                                item.source === 'history'
+                                  ? 'border-gray-200/60 dark:border-gray-700/60 text-gray-600 dark:text-gray-300'
+                                  : 'border-gray-200/60 dark:border-gray-700/60 text-gray-600 dark:text-gray-300'
+                              }`}
+                            >
+                              {item.source === 'history' ? '历史' : 'Bing'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>
